@@ -1,0 +1,14 @@
+# Virtual Environment
+.venv
+
+# Cache
+__pycache__
+
+# Dataset
+dataset_power_csv.csv 
+dataset_power_og.txt
+
+# Matrices 
+X.npy
+Y.npy
+
