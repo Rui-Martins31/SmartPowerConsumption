@@ -17,10 +17,10 @@ print(f"Using device: {device}")
 days_lookback = 14
 minutes_per_day = 1440
 input_size = 5  # 4 time features + 1 power consumption
-sequence_length = days_lookback * minutes_per_day  # 10,080
+sequence_length = days_lookback * minutes_per_day
 output_size = minutes_per_day  # 1440
 hidden_size = 64
-num_layers = 1
+num_layers = 3 # OG:1
 batch_size = 16
 
 # Load data
@@ -98,7 +98,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0
 num_epochs = 1000
 batch_indices = range(0, len(X_train), batch_size)
 best_val_loss = float('inf')
-patience = 40
+patience = 100
 patience_counter = 0
 best_model_state = None
 
