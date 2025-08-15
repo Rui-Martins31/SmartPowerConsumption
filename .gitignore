@@ -1,3 +1,6 @@
+# Files
+.*
+
 # Virtual Environment
 .venv
 
