@@ -3,15 +3,7 @@ import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-import os
 from datetime import datetime
-import subprocess
-
-# Check and update XGBoost version
-print(f"XGBoost version: {xgb.__version__}")
-if int(xgb.__version__.split('.')[0]) < 1:
-    print("Updating XGBoost to latest version...")
-    subprocess.run(['pip', 'install', '--upgrade', 'xgboost'])
 
 # Load data
 X = np.load('DATASET/X.npy')  # Shape: (n_samples, 4), normalized [0, 1]
@@ -20,7 +12,7 @@ Y = np.load('DATASET/Y.npy')  # Shape: (n_samples,), raw kW values
 # Aggregate to hourly data
 minutes_per_day = 1440
 hours_per_day = 24
-days_lookback = 14
+days_lookback = 7
 total_minutes = len(Y)
 n_full_days = total_minutes // minutes_per_day
 if total_minutes % minutes_per_day != 0:
@@ -79,11 +71,12 @@ dtest = xgb.DMatrix(X_test, label=y_test)
 
 # Train XGBoost with native API and early stopping
 params = {
-    'objective': 'reg:squarederror',
+    'objective': 'reg:squaredlogerror',
     'learning_rate': 0.05,
-    'max_depth': 5,
+    'max_depth': 4,
     'subsample': 0.6,
-    'colsample_bytree': 0.6,
+    'colsample_bytree': 0.9,
+    'reg_alpha': 0.8,
     'seed': 42
 }
 evals = [(dtrain, 'train'), (dval, 'eval')]
@@ -105,7 +98,7 @@ print(f'Train MAE: {train_mae:.4f} kW, Val MAE: {val_mae:.4f} kW, Test MAE: {tes
 print(f'Train RMSE: {train_rmse:.4f} kW, Test RMSE: {test_rmse:.4f} kW')
 
 # Save model
-model.save_model('xgboost_power_model_improved.json')
+model.save_model('xgboost_power_model.json')
 
 # Visualize predictions for a few test days
 import matplotlib.pyplot as plt

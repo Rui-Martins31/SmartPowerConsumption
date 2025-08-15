@@ -16,3 +16,18 @@ Epoch [100/200], Train Loss: 0.8045, Val Loss: 0.7995
 
 The third model uses LSTM to predict output values.
 Epoch [200/200], Train Loss: 0.7122
+
+
+## 4th Model
+
+The forth model uses XGBoost to predict the output values.
+params = {
+    'objective': 'reg:squaredlogerror',
+    'learning_rate': 0.05,
+    'max_depth': 4,
+    'subsample': 0.6,
+    'colsample_bytree': 0.9,
+    'seed': 42
+}
+Train MAE: 0.1268 kW, Val MAE: 0.1831 kW, Test MAE: 0.1792 kW
+Train RMSE: 0.1895 kW, Test RMSE: 0.2368 kW
