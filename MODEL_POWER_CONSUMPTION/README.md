@@ -27,7 +27,17 @@ params = {
     'max_depth': 4,
     'subsample': 0.6,
     'colsample_bytree': 0.9,
+    'reg_alpha': 0.8,
     'seed': 42
 }
-Train MAE: 0.1268 kW, Val MAE: 0.1831 kW, Test MAE: 0.1792 kW
-Train RMSE: 0.1895 kW, Test RMSE: 0.2368 kW
+Train MAE: 0.1548 kW, Val MAE: 0.1801 kW, Test MAE: 0.1664 kW
+Train RMSE: 0.2262 kW, Test RMSE: 0.2254 kW
+
+**Input (6):**
+    - Month;
+    - Day;
+    - Hour;
+    - Weekday;
+    - Sin(Hour);
+    - Cos(Hour);
+    - List of Previous Power Values (168 -> 7 days * 24 hours);
