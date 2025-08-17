@@ -9,7 +9,7 @@ class Battery:
 
         if self.total_capacity <= 0.0:
             raise ValueError
-        if self.curr_capacity <= 0.0:
+        if self.curr_capacity < 0.0:
             raise ValueError
         
     def charge(self, amount_kwh: float) -> None:

@@ -12,7 +12,7 @@ CULTURE = os.getenv("CULTURE")
 DATE = os.getenv("DATE")
 
 
-def get_electricity_price(country:str = "pt-PT", date:datetime = datetime.now().strftime("%Y-%m-%d")) -> list:
+def get_electricity_price(country:str = "pt-PT", date:str = datetime.now().strftime("%Y-%m-%d"), unit:str = "") -> list | dict:
     """
     Fetch daily electricity (MWh) market prices from the REN DataHub API.
     Returns a list with all the values.

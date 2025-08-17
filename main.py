@@ -2,14 +2,20 @@
 
 import matplotlib.pyplot as plt
 import datetime
+import numpy as np
+from scipy.signal import argrelextrema
 
 from REN_API.RenApiCall import get_electricity_price
+from BATTERY.ClassBattery import Battery
 
 #-----------------------------------------------------
 # METHODS
 #-----------------------------------------------------
 def predict_power_consumption(hour: int) -> float:
-    """Placeholder for the ML model. Returns a dummy consumption value in kWh."""
+    """
+    Placeholder for the ML model. Returns a dummy consumption value in kWh.
+    """
+
     # A simple pattern: higher consumption in the morning and evening
     if 7 <= hour <= 9 or 18 <= hour <= 21:
         return 1.5  # High consumption period
@@ -17,123 +23,92 @@ def predict_power_consumption(hour: int) -> float:
 
 
 
+def find_local_min(data_list: list[float], smooth_area: int = 0) -> list[float]:
+    """
+    Finds local minimums in a list.
+    """
+
+    arr: np.ndarray = np.array(data_list)
+    minima_indices = argrelextrema(arr, np.less)[0]
+    
+    #return arr[minima_indices].tolist()
+    return minima_indices, arr[minima_indices].tolist()
+
+
+
+def start_day(curr_day:str):
+    """
+    Fetches price and consumption values.
+    """
+
+    # Get prices
+    price_list: list = get_electricity_price(
+        country = "pt-PT",
+        date = curr_day
+    )
+    if isinstance(price_list, dict):    # To be modified later
+        return [], []
+    else:
+        price_list: list[float] = [ value/1000 for value in price_list ]
+
+    # Get consumption
+    consump_list: list[float] = []
+
+    for hour in range(24):
+        pow_con: float = predict_power_consumption(hour=hour)
+        consump_list.append(pow_con)
+
+    return price_list, consump_list
+
+
+
 #-----------------------------------------------------
 # MAIN
 #-----------------------------------------------------
 def main() -> None:
-    # Simulation Parameters
-    num_days_to_simulate = 5
-    battery_capacity_kwh = 10.0  # Total battery capacity
-    battery_charge_rate_kw = 2.0  # Max charge rate
-    battery_discharge_rate_kw = 2.0  # Max discharge rate
-    battery_soc = 5.0  # Initial State of Charge (SoC)
-    price_threshold = 0.08  # Price in €/kWh to trigger action
     
-    # Lists to store simulation results
-    hours_of_day = list(range(24))
-    total_prices = []
-    total_consumption = []
-    total_battery_soc = []
-    total_charged_power = []
-    total_grid_power = []
-    total_discharged_power = []
+    # Initialize Battery
+    battery = Battery(
+        battery_total_capacity = 10.0,
+        battery_curr_capacity = 0.0
+    )
 
-    current_date = datetime.datetime(year=2024, month=1, day=1)
+    # Vars
+    curr_date: datetime = datetime.datetime(year=2024, month=1, day=1)
+    num_days_sim: int = 7
+    threshold_price: float = 0.08   # To be removed later
+    hours_list: list[int] = [ h for h in range(24 * num_days_sim) ]
 
-    for day in range(num_days_to_simulate):
-        current_date_str = (current_date + datetime.timedelta(days=day)).strftime("%Y-%m-%d")
+    price_list_total: list[float] = []
+    consump_list_total: list[float] = []
 
-        raw_prices = get_electricity_price(date=current_date_str)
+    for day in range(num_days_sim):
+        # Fetch values
+        curr_date: datetime = curr_date + datetime.timedelta(days=day)
+        price_list, consump_list = start_day(curr_day = curr_date.strftime("%Y-%m-%d"))
         
-        if "error" in raw_prices:
-            print(f"Skipping day {current_date_str} due to an error: {raw_prices['error']}")
-            continue
+        for value in price_list:
+            price_list_total.append(value)
+
+        for value in consump_list:
+            consump_list_total.append(value)
             
-        prices = [val / 1000 for val in raw_prices]
 
-        for hour in hours_of_day:
-            consumption = predict_power_consumption(hour)
-            charged_power = 0.0
-            discharged_power = 0.0
-            grid_power = 0.0
-            
-            # Decision logic based on price threshold
-            if prices[hour] < price_threshold and battery_soc < battery_capacity_kwh:
-                # Charge the battery
-                charge_needed = battery_capacity_kwh - battery_soc
-                charged_power = min(battery_charge_rate_kw, charge_needed, consumption) # Charge only what's consumed if consumption is low
-                battery_soc += charged_power
-                grid_power = consumption - charged_power
-                
-            elif prices[hour] > price_threshold and battery_soc > 0.0:
-                # Discharge the battery
-                discharge_possible = battery_soc
-                discharged_power = min(battery_discharge_rate_kw, discharge_possible, consumption)
-                battery_soc -= discharged_power
-                grid_power = consumption - discharged_power
-            
-            else:
-                # Use grid power directly
-                grid_power = consumption
+        # print(f"Price list: {price_list}")
+        # print(f"Consumption list: {consump_list}")
+        print(f"Day {day}:\n    Current Battery Capacity: {battery.curr_capacity}\n")
 
-            # Append to history lists
-            total_prices.append(prices[hour])
-            total_consumption.append(consumption)
-            total_battery_soc.append(battery_soc)
-            total_charged_power.append(charged_power)
-            total_discharged_power.append(discharged_power)
-            total_grid_power.append(grid_power)
+    ind, price_min_list = find_local_min(price_list_total)
+    is_local_min = [ hour for id, hour in enumerate(hours_list) if id in ind  ]
 
-    # --- Plotting Results ---
+    plt.figure(figsize=(20,10))
+    plt.subplot(211)
+    plt.plot(hours_list, price_list_total, color="red")
+    # plt.plot(hours_list[is_local_min], price_list_total[is_local_min], color="green")
+    plt.scatter(is_local_min, price_min_list, color="green", marker="o")
 
-    fig, axs = plt.subplots(4, 1, figsize=(15, 20))
-    
-    # Plot 1: Prices
-    ax = axs[0]
-    ax.set_title('Hourly Electricity Price')
-    ax.set_ylabel('Price (€/kWh)')
-    ax.grid(True)
-    ax.plot(total_prices, color='blue')
-    ax.axhline(y=price_threshold, color='red', linestyle='--', label='Threshold')
-    ax.legend()
-    
-    # Plot 2: Consumption, Grid Use, and Battery Power
-    ax = axs[1]
-    ax.set_title('Power Flows')
-    ax.set_ylabel('Power (kWh)')
-    ax.grid(True)
-    ax.plot(total_consumption, color='green', label='Total Consumption')
-    ax.plot(total_grid_power, color='orange', label='Grid Power Use')
-    ax.plot(total_charged_power, color='red', linestyle='--', label='Battery Charge')
-    ax.plot(total_discharged_power, color='purple', linestyle='--', label='Battery Discharge')
-    ax.legend()
-
-    # Plot 3: Battery State of Charge
-    ax = axs[2]
-    ax.set_title('Battery State of Charge')
-    ax.set_ylabel('SoC (kWh)')
-    ax.grid(True)
-    ax.plot(total_battery_soc, color='teal')
-    ax.axhline(y=battery_capacity_kwh, color='gray', linestyle='--', label='Max Capacity')
-    ax.legend()
-
-    # Plot 4: Daily Costs
-    total_cost_per_day = [0] * num_days_to_simulate
-    hourly_costs = [p * c for p, c in zip(total_prices, total_grid_power)]
-
-    for i in range(num_days_to_simulate):
-        start_hour = i * 24
-        end_hour = start_hour + 24
-        total_cost_per_day[i] = sum(hourly_costs[start_hour:end_hour])
-
-    ax = axs[3]
-    ax.set_title('Daily Electricity Cost')
-    ax.set_xlabel('Day')
-    ax.set_ylabel('Cost (€)')
-    ax.grid(True)
-    ax.bar(range(num_days_to_simulate), total_cost_per_day, color='skyblue')
-
-    plt.tight_layout()
+    plt.subplot(212)
+    plt.plot(hours_list, consump_list_total, color="blue")
     plt.show()
     
 
