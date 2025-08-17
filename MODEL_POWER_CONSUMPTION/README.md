@@ -41,3 +41,5 @@ Train RMSE: 0.2262 kW, Test RMSE: 0.2254 kW
     - Sin(Hour);
     - Cos(Hour);
     - List of Previous Power Values (168 -> 7 days * 24 hours);
+
+The model is called "model_power_previous_days.pth".
