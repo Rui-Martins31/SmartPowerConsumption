@@ -14,7 +14,8 @@ from BATTERY.ClassBattery import Battery
 #-----------------------------------------------------
 def predict_power_consumption(hour: int) -> float:
     """
-    Placeholder for the ML model. Returns a dummy consumption value in kWh.
+    Placeholder for the ML model. 
+    Returns a dummy consumption value in kWh.
     """
 
     # A simple pattern: higher consumption in the morning and evening
