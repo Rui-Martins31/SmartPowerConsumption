@@ -28,3 +28,5 @@ class Battery:
     def discharge(self, amount_kwh: float = 0.0) -> None:
         if self.curr_capacity - amount_kwh >= 0.0:
             self.curr_capacity -= amount_kwh
+        else:
+            self.curr_capacity = 0.0

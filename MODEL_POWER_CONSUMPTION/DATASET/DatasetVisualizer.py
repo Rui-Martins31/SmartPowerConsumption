@@ -4,7 +4,7 @@ import datetime
 
 # Dataframe
 df = pd.read_csv(
-    'dataset_power_csv.csv',
+    './dataset_power_csv.csv',
     sep=',',
     dayfirst=True,
     low_memory=False
@@ -25,24 +25,12 @@ df.index.name = 'Date'
 
 print(df.head())
 
+# Save dataframe
+df.to_csv('./dataset_power_visualizer.csv')
+
 
 
 # Plot
-# df_snapshot = df.loc[ '2007-02-01':'2007-03-01' ]
-
-# plt.figure(figsize=(15,5))
-
-# plt.subplot(131)
-# plt.plot(df_snapshot[:24].index, df_snapshot[:24]['Global_active_power'])
-
-# plt.subplot(132)
-# plt.plot(df_snapshot[24:48].index, df_snapshot[24:48]['Global_active_power'])
-
-# plt.subplot(133)
-# plt.plot(df_snapshot[48:72].index, df_snapshot[48:72]['Global_active_power'])
-
-# plt.show()
-
 num_days = 8
 start_date = datetime.datetime(year=2008, month=3, day=1)
 curr_date = start_date
