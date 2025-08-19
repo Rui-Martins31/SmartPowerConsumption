@@ -32,24 +32,42 @@ def predict_power_consumption(hour: int) -> float:
     return base_consumption + morning_peak + evening_peak
 
 
-def find_local_min(data_list: list[float], smooth_area: int = 0) -> tuple[list[int], list[float]]:
+def find_local_min(data_list: list[float], smooth_area: int = 1, smooth_threshold: float = 0.01) -> tuple[list[int], list[float]]:
     """
     Finds local minimums in a list.
     """
 
     arr: np.ndarray = np.array(data_list)
     minima_indices = argrelextrema(arr, np.less)[0]
+
+    # Get neighbors
+    valley_indices: list[int] = []
+    for idx in minima_indices:
+        for incr in range(smooth_area, 0, -1):
+            if (arr[idx - incr] <= arr[idx] * 1.0+smooth_threshold) and (arr[idx - incr] >= arr[idx] * 1.0-smooth_threshold) and (idx > 0):
+                valley_indices.append(idx - incr)
+        
+        valley_indices.append(idx)
+
+        for incr in range(1, smooth_area+1, 1):
+            if (arr[idx + incr] <= arr[idx] * 1.0+smooth_threshold) and (arr[idx + incr] >= arr[idx] * 1.0-smooth_threshold) and (idx < len(arr) - 1):
+                valley_indices.append(idx + incr)
+
+    # Non-repeatable
+    valley_indices: set[int] = set(valley_indices)
+    valley_indices: list[int] = list(valley_indices)
     
     #return arr[minima_indices].tolist()
-    return minima_indices, arr[minima_indices].tolist()
+    #return minima_indices, arr[minima_indices].tolist()
+    return valley_indices, arr[valley_indices].tolist()
 
-def find_local_max(data_list: list[float], smooth_area: int = 0) -> tuple[list[int], list[float]]:
+def find_local_max(data_list: list[float], smooth_area: int = 1) -> tuple[list[int], list[float]]:
     """
     Finds local maximums in a list.
     """
 
     arr: np.ndarray = np.array(data_list)
-    maxima_indices = argrelextrema(arr, np.greater)[0]
+    maxima_indices = argrelextrema(arr, np.greater, order=smooth_area)[0]
     
     return maxima_indices, arr[maxima_indices].tolist()
 
@@ -95,7 +113,7 @@ def main() -> None:
 
     # Vars
     curr_date: datetime = datetime.datetime(year=2024, month=1, day=1)
-    num_days_sim: int = 7
+    num_days_sim: int = 14
     threshold_price: float = 0.08   # To be removed later
     hours_list: list[int] = [ h for h in range(24 * num_days_sim) ]
 
@@ -107,9 +125,11 @@ def main() -> None:
         # Fetch values
         curr_date: datetime = curr_date + datetime.timedelta(days=day)
         price_list, consump_list = start_day(curr_day = curr_date.strftime("%Y-%m-%d"))
+        if price_list == []:    # If connection wasn't established with REN's Database
+            continue
         
-        when_to_buy, _ = find_local_min(price_list)
-        when_to_use, _ = find_local_max(consump_list)
+        when_to_buy, _ = find_local_min(price_list, smooth_area=3)
+        when_to_use, _ = find_local_max(consump_list, smooth_area=3)
 
         for hour in range(24):
 
@@ -129,8 +149,8 @@ def main() -> None:
         ## DEBUG
         print(f"Day {day}:\n    Current Battery Capacity: {battery.curr_capacity}\n")
 
-    min_ind, price_min_list = find_local_min(price_list_total)
-    max_ind, consump_max_list = find_local_max(consump_list_total)
+    min_ind, price_min_list = find_local_min(price_list_total, smooth_area=5, smooth_threshold=0.01)
+    max_ind, consump_max_list = find_local_max(consump_list_total, smooth_area=3)
 
     plt.figure(figsize=(20,15))
 
