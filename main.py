@@ -32,44 +32,40 @@ def predict_power_consumption(hour: int) -> float:
     return base_consumption + morning_peak + evening_peak
 
 
-def find_local_min(data_list: list[float], smooth_area: int = 1, smooth_threshold: float = 0.01) -> tuple[list[int], list[float]]:
+def find_local_maxmin(data_list: list[float], maxmin: str = "max", smooth_area: int = 1, smooth_threshold: float = 0.01) -> (tuple[list[int], list[float]] | None):
     """
-    Finds local minimums in a list.
+    Finds local maximums or minimums in a list.
     """
 
     arr: np.ndarray = np.array(data_list)
-    minima_indices = argrelextrema(arr, np.less)[0]
+    if maxmin == "max":
+        maxmin_indices = argrelextrema(arr, np.greater)[0]
+    elif maxmin == "min": 
+        maxmin_indices = argrelextrema(arr, np.less)[0]
+    else:
+        print("maxmin is not valid!")
+        return None
 
     # Get neighbors
-    valley_indices: list[int] = []
-    for idx in minima_indices:
+    neigh_indices: list[int] = []
+    for idx in maxmin_indices:
         for incr in range(smooth_area, 0, -1):
             if (arr[idx - incr] <= arr[idx] * 1.0+smooth_threshold) and (arr[idx - incr] >= arr[idx] * 1.0-smooth_threshold) and (idx > 0):
-                valley_indices.append(idx - incr)
+                neigh_indices.append(idx - incr)
         
-        valley_indices.append(idx)
+        neigh_indices.append(idx)
 
         for incr in range(1, smooth_area+1, 1):
             if (arr[idx + incr] <= arr[idx] * 1.0+smooth_threshold) and (arr[idx + incr] >= arr[idx] * 1.0-smooth_threshold) and (idx < len(arr) - 1):
-                valley_indices.append(idx + incr)
+                neigh_indices.append(idx + incr)
 
     # Non-repeatable
-    valley_indices: set[int] = set(valley_indices)
-    valley_indices: list[int] = list(valley_indices)
+    neigh_indices: set[int] = set(neigh_indices)
+    neigh_indices: list[int] = list(neigh_indices)
     
-    #return arr[minima_indices].tolist()
-    #return minima_indices, arr[minima_indices].tolist()
-    return valley_indices, arr[valley_indices].tolist()
-
-def find_local_max(data_list: list[float], smooth_area: int = 1) -> tuple[list[int], list[float]]:
-    """
-    Finds local maximums in a list.
-    """
-
-    arr: np.ndarray = np.array(data_list)
-    maxima_indices = argrelextrema(arr, np.greater, order=smooth_area)[0]
-    
-    return maxima_indices, arr[maxima_indices].tolist()
+    #return arr[maxmin_indices].tolist()
+    #return maxmin_indices, arr[maxmin_indices].tolist()
+    return neigh_indices, arr[neigh_indices].tolist()
 
 
 
@@ -128,8 +124,8 @@ def main() -> None:
         if price_list == []:    # If connection wasn't established with REN's Database
             continue
         
-        when_to_buy, _ = find_local_min(price_list, smooth_area=3)
-        when_to_use, _ = find_local_max(consump_list, smooth_area=3)
+        when_to_buy, _ = find_local_maxmin(price_list, maxmin="min", smooth_area=3)
+        when_to_use, _ = find_local_maxmin(consump_list, maxmin="max", smooth_area=3)
 
         for hour in range(24):
 
@@ -149,8 +145,8 @@ def main() -> None:
         ## DEBUG
         print(f"Day {day}:\n    Current Battery Capacity: {battery.curr_capacity}\n")
 
-    min_ind, price_min_list = find_local_min(price_list_total, smooth_area=5, smooth_threshold=0.01)
-    max_ind, consump_max_list = find_local_max(consump_list_total, smooth_area=3)
+    min_ind, price_min_list = find_local_maxmin(price_list_total, maxmin="min", smooth_area=5, smooth_threshold=0.01)
+    max_ind, consump_max_list = find_local_maxmin(consump_list_total, maxmin="max", smooth_area=3)
 
     plt.figure(figsize=(20,15))
 
