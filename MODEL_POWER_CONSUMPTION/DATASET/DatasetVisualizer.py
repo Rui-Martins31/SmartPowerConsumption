@@ -23,7 +23,14 @@ df['hourly_group'] = df.index.floor('h')
 df = df.groupby('hourly_group').mean().round(3)
 df.index.name = 'Date'
 
+df.dropna(inplace=True)
+
 print(df.head())
+
+daily_counts = df.index.to_series().dt.date.value_counts()
+complete_days = daily_counts[daily_counts == 24].index
+
+df = df[df.index.to_series().dt.date.isin(complete_days)]
 
 # Save dataframe
 df.to_csv('./dataset_power_visualizer.csv')
