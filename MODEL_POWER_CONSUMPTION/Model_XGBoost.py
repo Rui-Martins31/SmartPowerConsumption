@@ -11,6 +11,16 @@ DAYS_LOOKBACK = 7
 HOURS_PER_DAY = 24
 MINUTES_PER_HOUR = 60
 LOOKBACK_HOURS = DAYS_LOOKBACK * HOURS_PER_DAY
+MODEL_PARAMS = {
+                'objective': 'reg:squarederror',
+                'eval_metric': 'rmse',
+                'learning_rate': 0.01,
+                'max_depth': 4,
+                'subsample': 0.6,
+                'colsample_bytree': 0.9,
+                'reg_alpha': 0.8,
+                'seed': 42
+            }
 
 
 def create_features(X_hourly, Y_hourly, Y_scaled, lookback_hours=LOOKBACK_HOURS):
@@ -63,17 +73,20 @@ def create_features(X_hourly, Y_hourly, Y_scaled, lookback_hours=LOOKBACK_HOURS)
         
     return np.array(features), np.array(targets)
 
-
-def train_model():
+def load_and_preprocess_data():
     """
-    Loads data, preprocesses it, trains the XGBoost model, and saves it.
+    Loads and preprocesses the data, returning hourly aggregated features and targets.
+    
+    Returns:
+        tuple: (X_hourly, Y_hourly, Y_scaled, scaler)
     """
-    # Load data
-    print("Loading data...")
-    X = np.load('DATASET/X.npy')  # Shape: (n_samples, 4), normalized [0, 1]
-    Y = np.load('DATASET/Y.npy')  # Shape: (n_samples,), raw kW values
+    try:
+        X = np.load('DATASET/X.npy')  # Shape: (n_samples, 4), normalized [0, 1]
+        Y = np.load('DATASET/Y.npy')  # Shape: (n_samples,), raw kW values
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Data files not found in DATASET directory: {e}")
 
-    print("Aggregating data to hourly resolution...")
+    # Aggregate to hourly resolution
     total_minutes = len(Y)
     n_full_hours = total_minutes // MINUTES_PER_HOUR
     
@@ -82,87 +95,41 @@ def train_model():
         Y = Y[:n_full_hours * MINUTES_PER_HOUR]
         X = X[:n_full_hours * MINUTES_PER_HOUR]
 
-    # Reshape and average over each 60-minute block
+        # Reshape and average over each 60-minute block
     Y_hourly = Y.reshape(n_full_hours, MINUTES_PER_HOUR).mean(axis=1)
     X_hourly = X.reshape(n_full_hours, MINUTES_PER_HOUR, 4).mean(axis=1)
 
     # Normalize lagged values using MinMaxScaler
     scaler = MinMaxScaler()
     Y_scaled = scaler.fit_transform(Y_hourly.reshape(-1, 1)).flatten()
-    
-    # Save the scaler for later use in prediction
-    joblib.dump(scaler, 'power_consumption_scaler.pkl')
-    print("Scaler saved to 'power_consumption_scaler.pkl'")
 
     # Validate data
     if len(X_hourly) != len(Y_hourly):
         raise ValueError(f"X_hourly and Y_hourly lengths mismatch: {len(X_hourly)} vs {len(Y_hourly)}")
     if len(Y_hourly) < LOOKBACK_HOURS + 1:
         raise ValueError(f"Dataset too small: need at least {LOOKBACK_HOURS + 1} hours of data.")
-
-    # Create features and split data
-    print("Creating features...")
-    X_features, y = create_features(X_hourly, Y_hourly, Y_scaled, lookback_hours=LOOKBACK_HOURS)
     
-    # Create feature names
-    time_feature_names = ['month', 'day', 'hour', 'day_of_week', 'hour_sin', 'hour_cos']
-    lag_feature_names = [f'lag_{i+1}h' for i in range(LOOKBACK_HOURS)]
-    feature_names = time_feature_names + lag_feature_names
+    return X_hourly, Y_hourly, Y_scaled, scaler
 
-    X_train, X_temp, y_train, y_temp = train_test_split(X_features, y, test_size=0.3, shuffle=False)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.33, shuffle=False)
-
-    print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}, Test size: {len(X_test)}")
-
-    # Prepare data for XGBoost
-    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_names)
-    dval = xgb.DMatrix(X_val, label=y_val, feature_names=feature_names)
-    dtest = xgb.DMatrix(X_test, label=y_test, feature_names=feature_names)
-
-    # Train XGBoost
-    print("Training XGBoost model...")
-    params = {
-        'objective': 'reg:squarederror',
-        'eval_metric': 'rmse',
-        'learning_rate': 0.05,
-        'max_depth': 4,
-        'subsample': 0.6,
-        'colsample_bytree': 0.9,
-        'reg_alpha': 0.8,
-        'seed': 42
-    }
-    evals = [(dtrain, 'train'), (dval, 'eval')]
-    model = xgb.train(
-        params, 
-        dtrain, 
-        num_boost_round=500,
-        evals=evals, 
-        early_stopping_rounds=25,
-        verbose_eval=50
-    )
-
-    # Predict
-    y_pred_test = model.predict(dtest)
-
-    # Evaluate
-    test_mae = mean_absolute_error(y_test, y_pred_test)
-    test_rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
-
+def evaluate_model(model, X_test, y_test, y_pred):
+    """
+    Evaluates the model performance and creates visualizations.
+    """
+    # Calculate metrics
+    test_mae = mean_absolute_error(y_test, y_pred)
+    test_rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    
     print(f'\nTest MAE: {test_mae:.4f} kW')
     print(f'Test RMSE: {test_rmse:.4f} kW')
-
-    # Save model
-    model.save_model('xgboost_power_model.json')
-    print("Model saved to 'xgboost_power_model.json'")
-
-    # Visualize predictions for a few test days
+    
+    # Plot predictions
     n_days_to_plot = 3
     for i in range(min(n_days_to_plot, len(y_test) // HOURS_PER_DAY)):
         start_idx = i * HOURS_PER_DAY
         end_idx = (i + 1) * HOURS_PER_DAY
         plt.figure(figsize=(15, 5))
         plt.plot(y_test[start_idx:end_idx], label='Actual', marker='.')
-        plt.plot(y_pred_test[start_idx:end_idx], label='Predicted', marker='.')
+        plt.plot(y_pred[start_idx:end_idx], label='Predicted', marker='.')
         plt.title(f'Test Day {i+1} Power Consumption (Hourly)')
         plt.xlabel('Hour of Day')
         plt.ylabel('Power Consumption (kW)')
@@ -174,7 +141,73 @@ def train_model():
     xgb.plot_importance(model, max_num_features=20)
     plt.title("Feature Importance")
     plt.show()
+    
+    return test_mae, test_rmse
 
+def train_model():
+    """
+    Loads data, preprocesses it, trains the XGBoost model, and saves it.
+    """
+    print("Loading and preprocessing data...")
+    X_hourly, Y_hourly, Y_scaled, scaler = load_and_preprocess_data()
+    
+    # Save the scaler for later use in prediction
+    joblib.dump(scaler, 'power_consumption_scaler.pkl')
+    print("Scaler saved to 'power_consumption_scaler.pkl'")
+
+    # Create features and split data
+    print("Creating features...")
+    X_features, y = create_features(X_hourly, Y_hourly, Y_scaled, lookback_hours=LOOKBACK_HOURS)
+    
+    # Create feature names
+    feature_names = get_feature_names()
+
+    # Split data into train, validation, and test sets
+    X_train, X_temp, y_train, y_temp = train_test_split(X_features, y, test_size=0.3, shuffle=False)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.33, shuffle=False)
+    print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}, Test size: {len(X_test)}")
+
+    try:
+        # Prepare data for XGBoost
+        dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_names)
+        dval = xgb.DMatrix(X_val, label=y_val, feature_names=feature_names)
+        dtest = xgb.DMatrix(X_test, label=y_test, feature_names=feature_names)
+
+        # Train XGBoost
+        print("Training XGBoost model...")
+        params = MODEL_PARAMS
+        evals = [(dtrain, 'train'), (dval, 'eval')]
+        model = xgb.train(
+            params, 
+            dtrain, 
+            num_boost_round=1000,
+            evals=evals, 
+            early_stopping_rounds=200,
+            verbose_eval=50
+        )
+
+        # Predict and evaluate
+        y_pred_test = model.predict(dtest)
+        test_mae, test_rmse = evaluate_model(model, X_test, y_test, y_pred_test)
+
+        # Save model
+        model.save_model('xgboost_power_model.json')
+        print("Model saved to 'xgboost_power_model.json'")
+        
+        return model, test_mae, test_rmse
+        
+    except Exception as e:
+        print(f"An error occurred during training: {e}")
+        return None, None, None
+
+
+def get_feature_names() -> list[str]:
+    """
+    Returns a list of feature names used by the model.
+    """
+    time_feature_names = ['month', 'day', 'hour', 'day_of_week', 'hour_sin', 'hour_cos']
+    lag_feature_names = [f'lag_{i+1}h' for i in range(LOOKBACK_HOURS)]
+    return time_feature_names + lag_feature_names
 
 def predict_next_hour(prediction_dt: datetime, recent_hourly_consumption_kw: list[float]) -> float:
     """
@@ -207,13 +240,13 @@ def predict_next_hour(prediction_dt: datetime, recent_hourly_consumption_kw: lis
     scaled_lags = scaled_lags.flatten().tolist()
 
     feature_vector = [month, day, hour, day_of_week, hour_sin, hour_cos] + scaled_lags
+    feature_names = get_feature_names()
 
     # Predict
-    dpredict = xgb.DMatrix([feature_vector])
+    dpredict = xgb.DMatrix([feature_vector], feature_names=feature_names)
     prediction = model.predict(dpredict)
 
     return float(prediction[0])
-
 
 def predict_next_24_hours(start_dt: datetime, recent_hourly_consumption_kw: list[float]) -> list[float]:
     """
@@ -254,9 +287,10 @@ def predict_next_24_hours(start_dt: datetime, recent_hourly_consumption_kw: list
 
         # Combine all features
         feature_vector = [month, day, hour, day_of_week, hour_sin, hour_cos] + scaled_lags
-        dpredict = xgb.DMatrix([feature_vector])
-
+        feature_names = get_feature_names()
+        
         # Predict
+        dpredict = xgb.DMatrix([feature_vector], feature_names=feature_names)
         new_prediction = model.predict(dpredict)[0]
         new_prediction = max(0.0, float(new_prediction))
 
@@ -269,16 +303,22 @@ def predict_next_24_hours(start_dt: datetime, recent_hourly_consumption_kw: list
     return predictions_24_hours
 
 
-if __name__ == '__main__':
-    print("\n--- Testing 24-Hour Prediction Function ---")
 
+
+
+if __name__ == '__main__':
+    print("Train model:")
+    train_model()
+
+    print("\nTesting 24-Hour Prediction Function:")
     start_prediction_dt = datetime(2025, 8, 23, 13, 0, 0)
 
-    print(f"Generating sample historical data for the {LOOKBACK_HOURS} hours before {start_prediction_dt}...")
-    sample_recent_consumption = np.random.uniform(low=1.5, high=5.0, size=LOOKBACK_HOURS).tolist()
+    dataset_values = np.load('DATASET/Y.npy')[-LOOKBACK_HOURS:]
+    previous_values_list: list[float] = [ float(value) for value in dataset_values ]
+    print(f"{previous_values_list = },\n {type(previous_values_list)}")
 
     try:
-        forecast_values = predict_next_24_hours(start_prediction_dt, sample_recent_consumption)
+        forecast_values = predict_next_24_hours(start_prediction_dt, previous_values_list)
 
         if forecast_values:
             print(f"\nSuccessfully generated 24-hour forecast starting from {start_prediction_dt}:")
