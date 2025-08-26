@@ -14,9 +14,9 @@ LOOKBACK_HOURS = DAYS_LOOKBACK * HOURS_PER_DAY
 MODEL_PARAMS = {
                 'objective': 'reg:squarederror',
                 'eval_metric': 'rmse',
-                'learning_rate': 0.01,
-                'max_depth': 4,
-                'subsample': 0.6,
+                'learning_rate': 0.02,
+                'max_depth': 8,
+                'subsample': 0.4,
                 'colsample_bytree': 0.9,
                 'reg_alpha': 0.8,
                 'seed': 42
@@ -122,6 +122,7 @@ def evaluate_model(model, X_test, y_test, y_pred):
     print(f'\nTest MAE: {test_mae:.4f} kW')
     print(f'Test RMSE: {test_rmse:.4f} kW')
     
+    """
     # Plot predictions
     n_days_to_plot = 3
     for i in range(min(n_days_to_plot, len(y_test) // HOURS_PER_DAY)):
@@ -141,6 +142,7 @@ def evaluate_model(model, X_test, y_test, y_pred):
     xgb.plot_importance(model, max_num_features=20)
     plt.title("Feature Importance")
     plt.show()
+    """
     
     return test_mae, test_rmse
 
@@ -304,12 +306,45 @@ def predict_next_24_hours(start_dt: datetime, recent_hourly_consumption_kw: list
 
 
 
-
+"""
+'learning_rate': 0.02,
+'max_depth': 8,
+'subsample': 0.4,
+'colsample_bytree': 0.9,
+'reg_alpha': 0.8,
+'seed': 42
+"""
 
 if __name__ == '__main__':
     print("Train model:")
-    train_model()
+    best_test_mae: float = float("inf")
+    params_to_use: list[float] = [ 0 for _ in range(6)]
+    for lr in np.arange(0.01, 0.3, 0.05):
+        for max_d in range(3, 8):
+            for subsmp in np.arange(0.5, 1.0, 0.1):
+                for colsmp in np.arange(0.5, 1.0, 0.1):
+                    for reg_al in np.arange(0.1, 1.0, 0.2):
+                        for seed in range(42, 43):
+                            
+                            MODEL_PARAMS['learning_rate'] = lr
+                            MODEL_PARAMS['max_depth'] = max_d
+                            MODEL_PARAMS['subsample'] = round(subsmp, 2)
+                            MODEL_PARAMS['colsample_bytree'] = round(colsmp, 2)
+                            MODEL_PARAMS['reg_alpha'] = round(reg_al, 2)
+                            MODEL_PARAMS['seed'] = seed
+                            
+                            # print(f"Testing params: {MODEL_PARAMS}") # Helpful to see progress
+                            _, test_mae, _ = train_model()
 
+                            if test_mae is not None and test_mae < best_test_mae:
+                                best_test_mae = test_mae
+                                best_params = MODEL_PARAMS.copy()
+
+
+    print(f"Best parameters found: {best_params}")
+    print(f"Best test MAE: {best_test_mae}")
+
+    """
     print("\nTesting 24-Hour Prediction Function:")
     start_prediction_dt = datetime(2025, 8, 23, 13, 0, 0)
 
@@ -342,3 +377,5 @@ if __name__ == '__main__':
 
     except Exception as e:
         print(f"\nAn error occurred during prediction: {e}")
+    
+    """

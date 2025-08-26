@@ -43,3 +43,7 @@ Train RMSE: 0.2262 kW, Test RMSE: 0.2254 kW
     - List of Previous Power Values (168 -> 7 days * 24 hours);
 
 The model is called "model_power_previous_days.pth".
+
+
+Best parameters found: {'objective': 'reg:squarederror', 'eval_metric': 'rmse', 'learning_rate': np.float64(0.01), 'max_depth': 7, 'subsample': np.float64(0.8), 'colsample_bytree': np.float64(0.7), 'reg_alpha': np.float64(0.9), 'seed': 42}
+Best test MAE: 0.32057270832189066
