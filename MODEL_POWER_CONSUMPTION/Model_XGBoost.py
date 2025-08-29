@@ -6,6 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import joblib
+import os
 
 DAYS_LOOKBACK = 7
 HOURS_PER_DAY = 24
@@ -21,6 +22,11 @@ MODEL_PARAMS = {
                 'reg_alpha': 0.8,
                 'seed': 42
             }
+
+# Folder
+MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(MODEL_DIR, 'xgboost_power_model.json')
+SCALER_PATH = os.path.join(MODEL_DIR, 'power_consumption_scaler.pkl')
 
 
 def create_features(X_hourly, Y_hourly, Y_scaled, lookback_hours=LOOKBACK_HOURS):
@@ -154,8 +160,8 @@ def train_model():
     X_hourly, Y_hourly, Y_scaled, scaler = load_and_preprocess_data()
     
     # Save the scaler for later use in prediction
-    joblib.dump(scaler, 'power_consumption_scaler.pkl')
-    print("Scaler saved to 'power_consumption_scaler.pkl'")
+    joblib.dump(scaler, SCALER_PATH)
+    print(f"Scaler saved to '{SCALER_PATH}'")
 
     # Create features and split data
     print("Creating features...")
@@ -193,8 +199,8 @@ def train_model():
         test_mae, test_rmse = evaluate_model(model, X_test, y_test, y_pred_test)
 
         # Save model
-        model.save_model('xgboost_power_model.json')
-        print("Model saved to 'xgboost_power_model.json'")
+        model.save_model(MODEL_PATH)
+        print(f"Model saved to '{MODEL_PATH}'")
         
         return model, test_mae, test_rmse
         
@@ -259,8 +265,8 @@ def predict_next_24_hours(start_dt: datetime, recent_hourly_consumption_kw: list
     # Load Model
     try:
         model = xgb.Booster()
-        model.load_model('xgboost_power_model.json')
-        scaler = joblib.load('power_consumption_scaler.pkl')
+        model.load_model(MODEL_PATH)
+        scaler = joblib.load(SCALER_PATH)
     except Exception as e:
         print(f"Error loading model or scaler: {e}")
         print("Please ensure train_model() has been run successfully.")
@@ -307,12 +313,16 @@ def predict_next_24_hours(start_dt: datetime, recent_hourly_consumption_kw: list
 
 
 """
-'learning_rate': 0.02,
-'max_depth': 8,
-'subsample': 0.4,
-'colsample_bytree': 0.9,
-'reg_alpha': 0.8,
-'seed': 42
+{
+    'objective': 'reg:squarederror', 
+    'eval_metric': 'rmse', 
+    'learning_rate': 0.01, 
+    'max_depth': 7, 
+    'subsample': 0.8, 
+    'colsample_bytree': 0.7, 
+    'reg_alpha': 0.9, 
+    'seed': 42
+}
 """
 
 if __name__ == '__main__':

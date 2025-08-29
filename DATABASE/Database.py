@@ -2,7 +2,6 @@
 
 import collections
 import os
-import csv
 import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -115,6 +114,53 @@ class Database:
         Returns the current number of days stored in the queue.
         """
         return len(self.queue)
+    
+    def set_new_day(self, pow_con_list: list[float], date: str) -> bool:
+        """
+        Adds a new day of power consumption data to the database.
+        
+        Args:
+            pow_con_list (list[float]): List of 24 hourly power consumption values
+            date (str): Date in ISO format (YYYY-MM-DD)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        HOURS_IN_DAY = 24
+        
+        # Validate input
+        if not isinstance(pow_con_list, list) or len(pow_con_list) != HOURS_IN_DAY:
+            print(f"Error: Power consumption list must contain exactly {HOURS_IN_DAY} values")
+            return False
+            
+        if not all(isinstance(x, (int, float)) for x in pow_con_list):
+            print("Error: All values must be numbers")
+            return False
+        
+        self.queue.append(pow_con_list)
+        self.last_date: str = f"{date} 23:00:00"
+        
+        return True
+        # Eventually add to Supabase's database
+        """
+        try:
+            # Add to Supabase
+            data_to_insert = [
+                {"datetime": f"{date} {hour:02d}:00:00", "pow_con_value": value}
+                for hour, value in enumerate(pow_con_list)
+            ]
+            
+            self.supabase.table(self.table_name).insert(data_to_insert).execute()
+            
+            # Update local queue
+            self.queue.append(pow_con_list)  # Old day will be automatically removed due to maxlen
+            self.last_date = f"{date} 23:00:00"  # Last hour of the day
+            
+            return True
+        except Exception as e:
+            print(f"Error adding new day to database: {e}")
+            return False
+        """
 
 
 
