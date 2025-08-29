@@ -4,64 +4,86 @@ import collections
 import os
 import csv
 import matplotlib.pyplot as plt
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
 class Database:
     
-    def __init__(self, num_days: int = 14):
+    def __init__(self, num_days: int = 14, 
+                 supabase_url: str = "",
+                 supabase_key: str = "",
+                 table_name: str = "power_consumption"):
         """
         Initializes the queue with a fixed size.
         """
+        print("Initializing Database object... ", end="")
+
+        # bypass method's args
+        load_dotenv()
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_KEY')
+
+        if not supabase_url or not supabase_key:
+            raise ValueError("Supabase's URL or Key were not loaded correctly.")
+        
         if not isinstance(num_days, int) or num_days <= 0:
             raise ValueError("Number of days must be a positive integer.")
         
         self.queue = collections.deque(maxlen=num_days)
+        self.supabase: Client = create_client(supabase_url, supabase_key)
+        self.table_name: str = table_name
+        self.last_date: str | None = None
 
-    def initialize_from_csv(self, filepath):
-        """
-        Populates the queue by reading the most recent data from a CSV file.
-        Each row in the CSV is expected to be a single hourly sample with a timestamp.
-        """
-        if not os.path.exists(filepath):
-            print(f"Warning: File not found at '{filepath}'. Cannot initialize queue.")
-            return
+        print("Done")
 
-        print(f"\n--- Initializing queue from '{filepath}' ---")
-        
-        daily_data = collections.OrderedDict()
-        
-        with open(filepath, mode='r') as file:
-            reader = csv.reader(file)
-            next(reader, None)
+
+    def initialize(self) -> None:
+        """
+        Get data from Supabase and populate local queue
+        """
+        print("Fetching data from Supabase... ", end="")
+        HOURS_IN_DAY: int = 24
+        NUM_DATA: int = self.queue.maxlen * HOURS_IN_DAY
+        response = (
+            self.supabase.table(self.table_name)
+            .select(f"datetime, pow_con_value")
+            .order("datetime", desc=True)
+            .limit(NUM_DATA)
+            .execute()
+        )
+        data = response.data
+        if not data:
+            raise ValueError(f"Couldn't fetch data from Supabase's table {self.table_name}")
+        print("Done")
+
+        # print(f"{data = }")
+        # print(f"{len(data) = }")
+
+        print("Processing data... ", end="")
+        try:
+            self.last_date: str = data[-1]['datetime']
+
+            values_to_store: list[float] = [ data[idx]['pow_con_value'] for idx in range(0, NUM_DATA) ]
+
+            if any([self.last_date == "", values_to_store == [], len(values_to_store) != NUM_DATA]):
+                raise ValueError("Data is empty or is not complete.")
             
-            for row in reader:
-                if len(row) < 2:
-                    continue
+            for idx in range(1, self.queue.maxlen+1):
+                if idx == 1:
+                    self.queue.append(list(values_to_store[-idx*HOURS_IN_DAY:])[::-1]) # [::-1] reverses the list
+                else:
+                    self.queue.append(list(values_to_store[-idx*HOURS_IN_DAY:-(idx-1)*HOURS_IN_DAY])[::-1])
 
-                timestamp_str, power_str = row[0], row[1]
-                
-                try:
-                    date_part = timestamp_str.split(' ')[0]
-                    power_value = float(power_str)
-                    
-                    # Group data by date
-                    if date_part not in daily_data:
-                        daily_data[date_part] = []
-                    daily_data[date_part].append(power_value)
-                    
-                except (ValueError, IndexError):
-                    print(f"Skipping invalid row: {row}")
-                    continue
+            if not self.queue or len(self.queue) < self.queue.maxlen:
+                raise ValueError("Queue is empty or is not complete.")
+        except:
+            raise ValueError("Error while parsing data.")
+        print("Done")
 
-        all_complete_days = [data for data in daily_data.values() if len(data) == 24]
+        # print(f"{self.queue = }")
 
-        # Extract the amount of data that fills the queue
-        data_to_load = all_complete_days[-self.queue.maxlen:]
-        
-        # Add the data to the queue
-        for day_data in data_to_load:
-            self.queue.append(day_data)
-        
-        print(f"Initialization complete. Queue now contains data for {len(self.queue)} days.")
+        print("Database is now initialized and fully populated!")
+        return None
 
     def get_all_data(self):
         """
@@ -96,12 +118,12 @@ class Database:
 
 if __name__ == "__main__":
     db = Database(num_days = 14)
-    db.initialize_from_csv('../MODEL_POWER_CONSUMPTION/DATASET/dataset_power_visualizer.csv')
-
-    all_data: list[list[float]] = db.get_all_data()
-    print(all_data)
-
+    db.initialize()
+    all_data: list = db.get_all_data()
+    # print(f"{all_data = }")
+    
     hours_list: list[int] = [ h for h in range(24 * 14)]
+
     temp_list: list[float] = []
     for data in all_data:
         for value in data:
@@ -110,3 +132,4 @@ if __name__ == "__main__":
     plt.figure(figsize=(15,5))
     plt.plot(hours_list, temp_list)
     plt.show()
+    
