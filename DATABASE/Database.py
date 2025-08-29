@@ -36,6 +36,8 @@ class Database:
 
         print("Done")
 
+        self.initialize()
+
 
     def initialize(self) -> None:
         """
@@ -118,7 +120,6 @@ class Database:
 
 if __name__ == "__main__":
     db = Database(num_days = 14)
-    db.initialize()
     all_data: list = db.get_all_data()
     # print(f"{all_data = }")
     
