@@ -147,6 +147,7 @@ def main() -> None:
     plt.title("Battery Current Capacity (kWh)")
     plt.xlabel("Hours")
     plt.ylabel("kWh")
+    plt.ylim(0, battery.total_capacity)
 
     plt.show()
     
