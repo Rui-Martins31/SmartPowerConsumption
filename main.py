@@ -42,16 +42,29 @@ def start_day(curr_day: datetime, database: Database) -> tuple[list, list]:
     """
     Fetch price and consumption values.
     """
+    # Const
+    HOURS_IN_DAY: int = 24
 
     # Get prices
     price_list: list = get_electricity_price(
         country = "pt-PT",
         date = curr_day.strftime("%Y-%m-%d")
     )
-    if isinstance(price_list, dict):    # To be modified later
+    if isinstance(price_list, dict):
+        print(f"{price_list['error']}.")
         return [], []
-    else:
-        price_list: list[float] = [ value/1000 for value in price_list ]
+    elif price_list == []:
+        print(f"Warning: REN's API outputed an empty list.")
+        return [], []
+    elif len(price_list) != HOURS_IN_DAY:
+        print("Warning: Price list does not contain 24 values.") 
+        print(f"For {curr_day.strftime("%Y-%m-%d")} the {price_list = }")
+        if len(price_list) < HOURS_IN_DAY:
+            for _ in range(HOURS_IN_DAY - len(price_list)):
+                price_list.append(price_list[-1])
+        else:
+            price_list = price_list[:HOURS_IN_DAY]
+    price_list: list[float] = [ value/1000 for value in price_list ]
 
     # Get consumption
     consump_list: list[float] = predict_power_consumption(curr_day, database)
@@ -73,16 +86,16 @@ def main() -> None:
 
     # Initialize Battery
     battery = Battery(
-        battery_total_capacity = 10.0,
+        battery_total_capacity = 20.0,
         battery_curr_capacity = 0.0,
         charger_rate = 2.2
     )
 
     # Vars
+    DAYS_TO_SIM: int = 30 * 12
+    HOURS_IN_DAY: int = 24
     curr_date: datetime = datetime.datetime(year=2024, month=1, day=1)
     # curr_date: datetime = datetime.datetime.now()
-    num_days_sim: int = 14
-    HOURS_IN_DAY: int = 24
 
     # Lists to track
     price_list_total: list[float] = []
@@ -93,22 +106,28 @@ def main() -> None:
     list_total_cost_with_bat: list[float] = []
 
     # Simulation loop
-    for day in range(num_days_sim):
+    for day in range(DAYS_TO_SIM):
         # Fetch values
-        curr_date: datetime = curr_date + datetime.timedelta(days=day)
+        curr_date: datetime = curr_date + datetime.timedelta(days=1)
         price_list, consump_list = start_day(curr_day=curr_date, database=db)
         if price_list == []:    # If connection wasn't established with REN's Database
+            print(f"Didn't get any price list for day {day}. Skipping to the next day...\n")
             continue
         
         # print(f"{consump_list = }, \n{len(consump_list) = }")
 
-        when_to_buy, _ = find_local_maxmin(price_list, maxmin="min", smooth_area=3)
+        MOVINNG_AVG_WINDOW = HOURS_IN_DAY * 3
+        if len(price_list_total) < MOVINNG_AVG_WINDOW:
+            moving_avg_list: list[float] = price_list_total
+        else: 
+            moving_avg_list: list[float] = price_list_total[-MOVINNG_AVG_WINDOW:]
+        when_to_buy, _ = find_local_maxmin(price_list, maxmin="min", smooth_area=30, moving_average=moving_avg_list)
         when_to_use, _ = find_local_maxmin(consump_list, maxmin="max", smooth_area=3)
 
         for hour in range(HOURS_IN_DAY):
             # Costs
             list_total_cost_no_bat.append(price_list[hour] * consump_list[hour])
-            list_total_cost_with_bat.append(0)  # initialize with null value
+            list_total_cost_with_bat.append(0.0)  # initialize as 0€
 
             # Check if it's time to buy
             if hour in when_to_buy:
@@ -174,8 +193,8 @@ def main() -> None:
     plt.show()
 
     ## DEBUG
-    print(f"Total cost without battery ({num_days_sim} days): {round(sum(list_total_cost_no_bat), 2)}€")
-    print(f"Total cost with battery ({num_days_sim} days): {round(sum(list_total_cost_with_bat), 2)}€")
+    print(f"\nTotal cost without battery ({DAYS_TO_SIM} days): {round(sum(list_total_cost_no_bat), 2)}€")
+    print(f"Total cost with battery ({DAYS_TO_SIM} days): {round(sum(list_total_cost_with_bat), 2)}€")
     
 
 
