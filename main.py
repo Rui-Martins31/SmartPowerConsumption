@@ -24,9 +24,9 @@ def predict_power_consumption(day: datetime, database: Database) -> list[float]:
     for daily_data in all_data:
         historical_data.extend(daily_data)
     
-    HOUR_IN_DAY = 24
+    HOURS_IN_DAY = 24
     NUM_DAYS = 7
-    recent_consumption = historical_data[-HOUR_IN_DAY*NUM_DAYS:]
+    recent_consumption = historical_data[-HOURS_IN_DAY*NUM_DAYS:]
     
     # Predict
     predictions = predict_next_24_hours(day, recent_consumption)
@@ -82,12 +82,17 @@ def main() -> None:
     curr_date: datetime = datetime.datetime(year=2024, month=1, day=1)
     # curr_date: datetime = datetime.datetime.now()
     num_days_sim: int = 14
-    threshold_price: float = 0.08   # To be removed later
+    HOURS_IN_DAY: int = 24
 
+    # Lists to track
     price_list_total: list[float] = []
     consump_list_total: list[float] = []
     bat_cap_list_total: list[float] = []
 
+    list_total_cost_no_bat: list[float] = []
+    list_total_cost_with_bat: list[float] = []
+
+    # Simulation loop
     for day in range(num_days_sim):
         # Fetch values
         curr_date: datetime = curr_date + datetime.timedelta(days=day)
@@ -100,15 +105,21 @@ def main() -> None:
         when_to_buy, _ = find_local_maxmin(price_list, maxmin="min", smooth_area=3)
         when_to_use, _ = find_local_maxmin(consump_list, maxmin="max", smooth_area=3)
 
-        for hour in range(24):
+        for hour in range(HOURS_IN_DAY):
+            # Costs
+            list_total_cost_no_bat.append(price_list[hour] * consump_list[hour])
+            list_total_cost_with_bat.append(0)  # initialize with null value
 
             # Check if it's time to buy
             if hour in when_to_buy:
-                battery.charge()
+                amount_bought: float = battery.charge()
+                list_total_cost_with_bat[-1] += amount_bought * price_list[hour]
+
 
             # Check if it's time to use the battery
-            if hour in when_to_use:
-                battery.discharge(consump_list[hour])
+            #if hour in when_to_use:
+            amount_left: float = battery.discharge(consump_list[hour])
+            list_total_cost_with_bat[-1] += amount_left * price_list[hour]
 
             # Save data
             price_list_total.append(price_list[hour])
@@ -121,11 +132,13 @@ def main() -> None:
         ## DEBUG
         print(f"Day {day}:\n    Current Battery Capacity: {battery.curr_capacity}\n")
 
+    # Plot results
     min_ind, price_min_list = find_local_maxmin(price_list_total, maxmin="min", smooth_area=5, smooth_threshold=0.01)
     max_ind, consump_max_list = find_local_maxmin(consump_list_total, maxmin="max", smooth_area=3)
 
     hours_list: list[int] = list(range(len(price_list_total)))
 
+    # Plot Data
     plt.figure(figsize=(20,15))
 
     plt.subplot(311)
@@ -149,7 +162,20 @@ def main() -> None:
     plt.ylabel("kWh")
     plt.ylim(0, battery.total_capacity)
 
+    # Plot Cost
+    plt.figure(figsize=(10,5))
+
+    plt.plot(hours_list, list_total_cost_no_bat, color="red")
+    plt.plot(hours_list, list_total_cost_with_bat, color="green")
+    plt.title("Cost (€)")
+    plt.xlabel("Hours")
+    plt.ylabel("Cost")
+
     plt.show()
+
+    ## DEBUG
+    print(f"Total cost without battery ({num_days_sim} days): {round(sum(list_total_cost_no_bat), 2)}€")
+    print(f"Total cost with battery ({num_days_sim} days): {round(sum(list_total_cost_with_bat), 2)}€")
     
 
 
