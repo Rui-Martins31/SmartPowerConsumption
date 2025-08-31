@@ -116,12 +116,12 @@ def main() -> None:
         
         # print(f"{consump_list = }, \n{len(consump_list) = }")
 
-        MOVINNG_AVG_WINDOW = HOURS_IN_DAY * 3
+        MOVINNG_AVG_WINDOW = HOURS_IN_DAY * 1   # Best results when only considering the previous day
         if len(price_list_total) < MOVINNG_AVG_WINDOW:
             moving_avg_list: list[float] = price_list_total
         else: 
             moving_avg_list: list[float] = price_list_total[-MOVINNG_AVG_WINDOW:]
-        when_to_buy, _ = find_local_maxmin(price_list, maxmin="min", smooth_area=30, moving_average=moving_avg_list)
+        when_to_buy, _ = find_local_maxmin(price_list, maxmin="min", smooth_area=5, moving_average=moving_avg_list)
         when_to_use, _ = find_local_maxmin(consump_list, maxmin="max", smooth_area=3)
 
         for hour in range(HOURS_IN_DAY):

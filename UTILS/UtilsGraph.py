@@ -20,10 +20,16 @@ def find_local_maxmin(data_list: list[float],
     if maxmin == "max":
         maxmin_indices = argrelextrema(arr, np.greater)[0]
     elif maxmin == "min": 
-        # if moving_average:
-        #     avg: float = average(data_list)
-        #     arr: np.ndarray = np.where(arr <= avg, arr, float("inf"))
-        maxmin_indices = argrelextrema(arr, np.less)[0]
+        if moving_average != []:
+            neigh_indices: list[int] = []
+            avg: float = average(moving_average)
+            for idx in range(len(arr)):
+                if arr[idx] <= avg:
+                    neigh_indices.append(idx)
+            
+            return neigh_indices, arr[neigh_indices].tolist()
+        else:
+            maxmin_indices = argrelextrema(arr, np.less)[0]
     else:
         print("maxmin is not valid!")
         return None
@@ -45,13 +51,14 @@ def find_local_maxmin(data_list: list[float],
 
     ## Check if it's below the moving average
     ## Temporary
-    if maxmin == "min" and moving_average != []:
-        temp_list_idx: list[int] = []
-        avg: float = average(moving_average)
-        for idx in range(len(arr)):
-            if arr[idx] <= avg:
-                temp_list_idx.append(idx)
-        neigh_indices: list[int] = temp_list_idx
+    # if maxmin == "min" and moving_average != []:
+    #     temp_list_idx: list[int] = []
+    #     avg: float = average(moving_average)
+    #     for idx in range(len(arr)):
+    #         if arr[idx] <= avg:
+    #             temp_list_idx.append(idx)
+    #     neigh_indices: list[int] = temp_list_idx
+        # neigh_indices.extend(temp_list_idx)
 
     # Non-repeatable
     neigh_indices: set[int] = set(neigh_indices)
