@@ -227,33 +227,6 @@ def predict_future(df: pd.DataFrame,
     print(f"{df_copy = }")   
 
     return predictions
-    
-    last_data = create_features(last_data)
-    feature_columns = get_feature_names(last_data)
-    last_data[feature_columns] = last_data[feature_columns].ffill().fillna(last_data[feature_columns].mean())
-    
-    for i in range(forecast_hours):
-        current_data = last_data.tail(LOOKBACK_HOURS).copy()
-        
-        features = get_feature_names(current_data)
-        X_pred = current_data[features].tail(1)
-        
-        if X_pred.empty:
-            raise ValueError("No valid data available for prediction after feature creation")
-        
-        pred = model.predict(X_pred)[0]
-        predictions.append(float(pred))
-        
-        new_row = pd.DataFrame({
-            'ds': [future_dates[i]],
-            'y': [pred]
-        })
-        last_data = pd.concat([last_data, new_row], ignore_index=True)
-        
-        last_data = create_features(last_data)
-        last_data[feature_columns] = last_data[feature_columns].ffill().fillna(last_data[feature_columns].mean())
-
-    return predictions
 
 
 #-------------------------
