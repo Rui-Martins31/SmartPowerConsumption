@@ -1,8 +1,5 @@
-# File to run the entire system
-
 import matplotlib.pyplot as plt
 import datetime
-import math
 import pandas as pd #Temporarily
 
 from REN_API.RenApiCall import get_electricity_price
@@ -25,7 +22,6 @@ def predict_power_consumption(day: datetime.datetime, database: Database) -> lis
     for daily_data in all_data:
         historical_data.extend(daily_data)
     
-    HOURS_IN_DAY = 24
     NUM_DAYS = 7
     recent_consumption: list[float] = historical_data[-HOURS_IN_DAY*NUM_DAYS:]
     
@@ -46,9 +42,6 @@ def start_day(curr_day: datetime, database: Database) -> tuple[list, list]:
     """
     Fetch price and consumption values.
     """
-    # Const
-    HOURS_IN_DAY: int = 24
-
     # Get prices
     price_list: list = get_electricity_price(
         country = "pt-PT",
@@ -83,6 +76,14 @@ def start_day(curr_day: datetime, database: Database) -> tuple[list, list]:
 #-----------------------------------------------------
 # MAIN
 #-----------------------------------------------------
+# Global Vars ------------------
+DAYS_TO_SIM: int = int(30 * 2)
+HOURS_IN_DAY: int = 24
+MOVING_AVG_WINDOW = HOURS_IN_DAY * 1   # Best results when only considering the previous day
+
+STATIC_ENERGY_PRICE: float = 0.15 # €/kWh
+
+# Main -------------------------
 def main() -> None:
     
     # Initialize Database
@@ -96,17 +97,15 @@ def main() -> None:
     )
 
     # Vars
-    DAYS_TO_SIM: int = int(30 * 12)
-    HOURS_IN_DAY: int = 24
     curr_date: datetime = datetime.datetime(year=2024, month=1, day=1)
     # curr_date: datetime = datetime.datetime.now()
 
     # Lists to track
-    price_list_total: list[float] = []
+    price_list_total: list[float]   = []
     consump_list_total: list[float] = []
     bat_cap_list_total: list[float] = []
 
-    list_total_cost_no_bat: list[float] = []
+    list_total_cost_no_bat: list[float]   = []
     list_total_cost_with_bat: list[float] = []
 
     # Debug lists
@@ -122,29 +121,29 @@ def main() -> None:
             print(f"Didn't get any price list for day {day}. Skipping to the next day...\n")
             continue
         
-        # print(f"{consump_list = }, \n{len(consump_list) = }")
-
-        MOVINNG_AVG_WINDOW = HOURS_IN_DAY * 1   # Best results when only considering the previous day
-        if len(price_list_total) < MOVINNG_AVG_WINDOW:
+        # Moving average
+        if len(price_list_total) < MOVING_AVG_WINDOW:
             moving_avg_list: list[float] = price_list_total
         else: 
-            moving_avg_list: list[float] = price_list_total[-MOVINNG_AVG_WINDOW:]
+            moving_avg_list: list[float] = price_list_total[-MOVING_AVG_WINDOW:]
         when_to_buy, _ = find_local_maxmin(price_list, maxmin="min", smooth_area=5, moving_average=moving_avg_list)
         when_to_use, _ = find_local_maxmin(consump_list, maxmin="max", smooth_area=3)
 
+        # Hour loop
         for hour in range(HOURS_IN_DAY):
             # Costs
-            list_total_cost_no_bat.append(price_list[hour] * consump_list[hour])
+            # list_total_cost_no_bat.append(price_list[hour] * consump_list[hour])  # Var price
+            list_total_cost_no_bat.append(STATIC_ENERGY_PRICE * consump_list[hour]) # Static price
             list_total_cost_with_bat.append(0.0)  # initialize as 0€
 
             # Check if it's time to buy
             if hour in when_to_buy:
-                amount_bought: float = battery.charge()
-                list_total_cost_with_bat[-1] += amount_bought * price_list[hour]    # Save the price that we payed to store energy
+                amount_bought: float          = battery.charge()
+                list_total_cost_with_bat[-1] += amount_bought * price_list[hour]      # Save the price that we payed to store energy
                 list_total_cost_with_bat[-1] += consump_list[hour] * price_list[hour] # Save the price that cost to fulfill consumption
             else:
-                amount_left: float = battery.discharge(consump_list[hour])
-                list_total_cost_with_bat[-1] += amount_left * price_list[hour]  # Save the price in case battery hadn't enough energy
+                amount_left: float            = battery.discharge(consump_list[hour])
+                list_total_cost_with_bat[-1] += amount_left * price_list[hour]        # Save the price in case battery hadn't enough energy
 
             # Save data
             price_list_total.append(price_list[hour])
@@ -160,7 +159,7 @@ def main() -> None:
         max_ind.extend([idx + day*HOURS_IN_DAY for idx in when_to_use])
 
     # Plot results
-    price_min_list: list[float] = [ price_list_total[idx] for idx in min_ind ]
+    price_min_list: list[float]    = [ price_list_total[idx] for idx in min_ind ]
     consump_max_list: list [float] = [ consump_list_total[idx] for idx in max_ind ]
 
     hours_list: list[int] = list(range(len(price_list_total)))
