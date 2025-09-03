@@ -29,7 +29,7 @@ def predict_power_consumption(day: datetime.datetime, database: Database) -> lis
     # df: pd.DataFrame = create_df_from_date_to_predict(date_to_predict=day, prev_values=recent_consumption)
     # predictions: list[float] = predict_future(df=df, forecast_hours=HOURS_IN_DAY)
     predictions: list[float] = predict_next_24_hours(start_dt=day, recent_hourly_consumption_kw=recent_consumption)
-    predictions: list[float] = get_pow_con_from_db(day=day)
+    predictions: list[float] = get_pow_con_from_db(day=day) # Temporarily while the ML model is not ready
     if not predictions:
         print("Warning: Model prediction returned empty list")
         return [2.0] * 24  # Default consumption of 2 kWh per hour
@@ -77,7 +77,7 @@ def start_day(curr_day: datetime, database: Database) -> tuple[list, list]:
 # MAIN
 #-----------------------------------------------------
 # Global Vars ------------------
-DAYS_TO_SIM: int = int(30 * 2)
+DAYS_TO_SIM: int = int(30 * 18)
 HOURS_IN_DAY: int = 24
 MOVING_AVG_WINDOW = HOURS_IN_DAY * 1   # Best results when only considering the previous day
 

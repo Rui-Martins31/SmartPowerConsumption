@@ -306,7 +306,6 @@ def predict_next_24_hours(start_dt: datetime.datetime, recent_hourly_consumption
 
     return predictions_24_hours
 
-
 def get_pow_con_from_db(day: datetime.datetime) -> list[float]:
     """
     Temporary method that get power consumption values from the dataset
@@ -320,10 +319,10 @@ def get_pow_con_from_db(day: datetime.datetime) -> list[float]:
     # print(f"{df = }")
 
     try:
-        target_day = day.replace(year=2007) # Replace the year to be compatible with dataset's timeline
+        target_day = day.replace(year=day.year-17) # Replace the year to be compatible with dataset's timeline
         daily_data = df[df["Date"].dt.date == target_day.date()]
     except:
-        target_day = day.replace(year=2007, day=day.day-1)
+        target_day = day.replace(year=day.year-17, day=day.day-1)
         daily_data = df[df["Date"].dt.date == target_day.date()]
 
     # print(f"{target_day = }")
