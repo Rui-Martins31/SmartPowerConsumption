@@ -305,3 +305,29 @@ def predict_next_24_hours(start_dt: datetime.datetime, recent_hourly_consumption
         current_lags.append(new_prediction)
 
     return predictions_24_hours
+
+
+def get_pow_con_from_db(day: datetime.datetime) -> list[float]:
+    """
+    Temporary method that get power consumption values from the dataset
+    """
+    df: pd.DataFrame = pd.read_csv(
+        DATASET_PATH,
+        parse_dates=["Date"],
+        dtype={"Global_active_power": "float"}
+    )
+
+    # print(f"{df = }")
+
+    try:
+        target_day = day.replace(year=2007) # Replace the year to be compatible with dataset's timeline
+        daily_data = df[df["Date"].dt.date == target_day.date()]
+    except:
+        target_day = day.replace(year=2007, day=day.day-1)
+        daily_data = df[df["Date"].dt.date == target_day.date()]
+
+    # print(f"{target_day = }")
+    # print(f"{daily_data = }")
+
+    return daily_data["Global_active_power"].tolist()
+    

@@ -10,7 +10,7 @@ from BATTERY.ClassBattery import Battery
 from UTILS.UtilsGraph import find_local_maxmin
 from DATABASE.Database import Database
 from MODEL_POWER_CONSUMPTION.Model_XGBoost import create_df_from_date_to_predict, predict_future
-from MODEL_POWER_CONSUMPTION.Model_XGBoost import predict_next_24_hours
+from MODEL_POWER_CONSUMPTION.Model_XGBoost import predict_next_24_hours, get_pow_con_from_db
 
 #-----------------------------------------------------
 # METHODS
@@ -33,6 +33,7 @@ def predict_power_consumption(day: datetime.datetime, database: Database) -> lis
     # df: pd.DataFrame = create_df_from_date_to_predict(date_to_predict=day, prev_values=recent_consumption)
     # predictions: list[float] = predict_future(df=df, forecast_hours=HOURS_IN_DAY)
     predictions: list[float] = predict_next_24_hours(start_dt=day, recent_hourly_consumption_kw=recent_consumption)
+    predictions: list[float] = get_pow_con_from_db(day=day)
     if not predictions:
         print("Warning: Model prediction returned empty list")
         return [2.0] * 24  # Default consumption of 2 kWh per hour
@@ -95,7 +96,7 @@ def main() -> None:
     )
 
     # Vars
-    DAYS_TO_SIM: int = int(30 * 1)
+    DAYS_TO_SIM: int = int(30 * 12)
     HOURS_IN_DAY: int = 24
     curr_date: datetime = datetime.datetime(year=2024, month=1, day=1)
     # curr_date: datetime = datetime.datetime.now()

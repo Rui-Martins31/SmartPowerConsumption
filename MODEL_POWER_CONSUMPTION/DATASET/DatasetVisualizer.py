@@ -20,7 +20,8 @@ df['Global_active_power'] = pd.to_numeric(df['Global_active_power'], errors='coe
 print(df.head())
 
 df['hourly_group'] = df.index.floor('h')
-df = df.groupby('hourly_group').mean().round(3)
+# df = df.groupby('hourly_group').mean().round(3)       # Get average kW
+df = df.groupby('hourly_group').sum().div(60).round(3)  # Get kWh
 df.index.name = 'Date'
 
 df.dropna(inplace=True)
